@@ -1,0 +1,102 @@
+services:
+  - type: keyvalue
+    name: api-whatsapp-redis
+    plan: free
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
+  - type: web
+    name: api-whatsapp
+    runtime: image
+    plan: starter
+    image:
+      url: docker.io/evoapicloud/evolution-api:latest
+    disk:
+      name: evolution-instances
+      mountPath: /evolution/instances
+      sizeGB: 1
+    envVars:
+      - key: SERVER_TYPE
+        value: http
+      - key: SERVER_PORT
+        value: 10000
+      - key: PORT
+        value: 10000
+      - key: SERVER_URL
+        value: https://api-whatsapp.onrender.com
+
+      - key: AUTHENTICATION_API_KEY
+        generateValue: true
+
+      - key: DATABASE_ENABLED
+        value: true
+      - key: DATABASE_PROVIDER
+        value: postgresql
+      - key: DATABASE_CONNECTION_URI
+        fromDatabase:
+          name: api-whatsapp-postgres
+          property: connectionString
+      - key: DATABASE_CONNECTION_CLIENT_NAME
+        value: evolution
+
+      - key: DATABASE_SAVE_DATA_INSTANCE
+        value: true
+      - key: DATABASE_SAVE_DATA_NEW_MESSAGE
+        value: true
+      - key: DATABASE_SAVE_MESSAGE_UPDATE
+        value: true
+      - key: DATABASE_SAVE_DATA_CONTACTS
+        value: true
+      - key: DATABASE_SAVE_DATA_CHATS
+        value: true
+      - key: DATABASE_SAVE_DATA_LABELS
+        value: true
+      - key: DATABASE_SAVE_DATA_HISTORIC
+        value: true
+
+      - key: CACHE_REDIS_ENABLED
+        value: true
+      - key: CACHE_REDIS_URI
+        fromService:
+          type: keyvalue
+          name: api-whatsapp-redis
+          property: connectionString
+      - key: CACHE_REDIS_PREFIX_KEY
+        value: evolution
+      - key: CACHE_REDIS_SAVE_INSTANCES
+        value: true
+      - key: CACHE_LOCAL_ENABLED
+        value: false
+
+      - key: DEL_INSTANCE
+        value: false
+
+      - key: CONFIG_SESSION_PHONE_CLIENT
+        value: Evolution API
+      - key: CONFIG_SESSION_PHONE_NAME
+        value: Chrome
+
+      - key: LOG_LEVEL
+        value: INFO
+
+  - type: web
+    name: api-whatsapp-webhook
+    runtime: docker
+    plan: free
+    dockerfilePath: ./webhook-api/Dockerfile
+    dockerContext: ./webhook-api
+    healthCheckPath: /
+    envVars:
+      - key: APP_NAME
+        value: Evolution Webhook API
+      - key: EVOLUTION_INSTANCE_NAME
+        value: whatsapp_joao
+      - key: WHATSAPP_GROUP_JID
+        value: ""
+
+databases:
+  - name: api-whatsapp-postgres
+    plan: free
+    databaseName: evolution
+    user: evolution
+    ipAllowList: []
