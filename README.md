@@ -64,24 +64,17 @@ CACHE_REDIS_URI=redis://redis:6379
 SERVER_URL=http://localhost:8080
 ```
 
-### URLs no Render com Blueprint
+### URLs no Render manual
 
-Com o `render.yaml`, você não precisa montar manualmente a URL do banco nem do Redis.
-
-O Render injeta estas variáveis automaticamente:
+No Render, como você vai criar um serviço por vez, copie as URLs internas que o próprio Render mostrar para Postgres e Redis:
 
 ```env
-DATABASE_CONNECTION_URI=URL_INTERNA_DO_POSTGRES_GERADA_PELO_RENDER
-CACHE_REDIS_URI=URL_INTERNA_DO_REDIS_GERADA_PELO_RENDER
-```
-
-Você só precisa conferir a URL pública da Evolution API:
-
-```env
+DATABASE_CONNECTION_URI=URL_INTERNA_DO_POSTGRES
+CACHE_REDIS_URI=URL_INTERNA_DO_REDIS
 SERVER_URL=https://api-whatsapp.onrender.com
 ```
 
-Se você mudar o nome do serviço no `render.yaml`, altere `SERVER_URL` para combinar.
+Se o Render gerar outro nome para a Evolution API, altere `SERVER_URL` para a URL real.
 
 Exemplo visual:
 
@@ -93,10 +86,10 @@ Webhook publico:
 https://minha-webhook-api.onrender.com/webhook/evolution
 
 Postgres interno:
-gerado automaticamente pelo Render
+copiado do serviço Postgres
 
 Redis interno:
-gerado automaticamente pelo Render
+copiado do serviço Key Value
 ```
 
 ### `webhook-api/.env`
@@ -171,145 +164,139 @@ Todos os payloads recebidos são salvos em `webhook-api/logs/`.
 
 ## Deploy no Render
 
-O projeto já tem um `render.yaml` na raiz. Esse arquivo funciona como um Blueprint do Render e cria tudo junto:
-
-- Evolution API (`api-whatsapp`)
-- Webhook API (`api-whatsapp-webhook`)
-- PostgreSQL (`api-whatsapp-postgres`)
-- Redis (`api-whatsapp-redis`)
+Como o Blueprint com disco persistente exige plano pago, suba os recursos um por um dentro do seu projeto no Render.
 
 Referências oficiais:
 
-- Blueprints no Render: https://render.com/docs/infrastructure-as-code
-- Blueprint YAML: https://render.com/docs/blueprint-spec
 - Docker no Render: https://render.com/docs/docker
 - Deploy de imagem Docker pronta: https://render.com/docs/deploying-an-image
 - Variáveis de ambiente no Render: https://render.com/docs/configure-environment-variables
 
-### Forma mais simples
+### 1. Criar PostgreSQL
 
-No Render, use:
-
-```text
-New > Blueprint
-```
-
-Depois selecione o repositório do GitHub que contém este projeto.
-
-O Render vai ler o arquivo:
+No Render:
 
 ```text
-render.yaml
+New > Postgres
 ```
 
-e criar os serviços automaticamente.
-
-### URLs que você talvez precise alterar
-
-No `render.yaml`, deixei estes nomes:
-
-```yaml
-name: api-whatsapp
-name: api-whatsapp-webhook
-name: api-whatsapp-postgres
-name: api-whatsapp-redis
-```
-
-Com esses nomes, as URLs públicas esperadas ficam assim:
+Nome recomendado:
 
 ```text
-Evolution API:
-https://api-whatsapp.onrender.com
-
-Webhook API:
-https://api-whatsapp-webhook.onrender.com
-
-Endpoint do webhook:
-https://api-whatsapp-webhook.onrender.com/webhook/evolution
+api-whatsapp-postgres
 ```
 
-Se o Render não aceitar algum nome porque já existe, troque no `render.yaml`:
-
-```yaml
-name: api-whatsapp
-```
-
-por algo único, por exemplo:
-
-```yaml
-name: minha-evolution-api
-```
-
-Nesse caso, altere também:
+Depois de criar, copie a URL interna do banco. Ela será usada na variável:
 
 ```env
-SERVER_URL=https://minha-evolution-api.onrender.com
+DATABASE_CONNECTION_URI=URL_INTERNA_DO_POSTGRES
 ```
 
-### Banco e Redis
+### 2. Criar Redis
 
-Você não precisa montar manualmente a URL do banco nem do Redis no Blueprint.
-
-O `render.yaml` já faz isso automaticamente:
-
-```yaml
-DATABASE_CONNECTION_URI:
-  fromDatabase:
-    name: api-whatsapp-postgres
-    property: connectionString
-
-CACHE_REDIS_URI:
-  fromService:
-    type: keyvalue
-    name: api-whatsapp-redis
-    property: connectionString
-```
-
-Ou seja:
-
-- Local com Docker: usa `postgres` e `redis`.
-- Render com Blueprint: o Render injeta as URLs automaticamente.
-
-### Variáveis que ainda pode ajustar
-
-Depois que o Blueprint criar tudo, confira no painel do Render:
-
-- `SERVER_URL`: deve ser a URL pública da Evolution API, por padrão `https://api-whatsapp.onrender.com`.
-- `AUTHENTICATION_API_KEY`: o Render gera automaticamente, mas você pode trocar.
-- `EVOLUTION_INSTANCE_NAME`: nome da instância que você vai usar.
-- `WHATSAPP_GROUP_JID`: preencha somente se quiser filtrar um grupo específico.
-
-### Configurar webhook
-
-Depois do deploy, configure na Evolution API o webhook:
+No Render:
 
 ```text
-https://api-whatsapp-webhook.onrender.com/webhook/evolution
+New > Key Value
 ```
 
-Se você mudou o nome do serviço do webhook, siga o formato:
+Nome recomendado:
 
 ```text
-https://NOME-DO-SERVICO-WEBHOOK.onrender.com/webhook/evolution
+api-whatsapp-redis
 ```
 
-### Observação sobre armazenamento
+Depois de criar, copie a URL interna do Redis. Ela será usada na variável:
 
-O serviço `api-whatsapp` usa disco persistente em:
-
-```text
-/evolution/instances
+```env
+CACHE_REDIS_URI=URL_INTERNA_DO_REDIS
 ```
 
-Isso mantém as instâncias/sessões da Evolution API mesmo após restart.
+### 3. Criar Evolution API
 
-## Porta no Render
-
-O `render.yaml` configura a Evolution API na porta `10000`, que é o padrão esperado por Web Services do Render:
+No Render:
 
 ```text
+New > Web Service
+```
+
+Escolha a opção para usar imagem Docker pronta e informe:
+
+```text
+docker.io/evoapicloud/evolution-api:latest
+```
+
+Nome recomendado:
+
+```text
+api-whatsapp
+```
+
+Configure as variáveis de ambiente:
+
+```env
+SERVER_TYPE=http
 SERVER_PORT=10000
 PORT=10000
+SERVER_URL=https://api-whatsapp.onrender.com
+
+AUTHENTICATION_API_KEY=SUA_CHAVE_FORTE
+
+DATABASE_ENABLED=true
+DATABASE_PROVIDER=postgresql
+DATABASE_CONNECTION_URI=URL_INTERNA_DO_POSTGRES
+DATABASE_CONNECTION_CLIENT_NAME=evolution
+
+DATABASE_SAVE_DATA_INSTANCE=true
+DATABASE_SAVE_DATA_NEW_MESSAGE=true
+DATABASE_SAVE_MESSAGE_UPDATE=true
+DATABASE_SAVE_DATA_CONTACTS=true
+DATABASE_SAVE_DATA_CHATS=true
+DATABASE_SAVE_DATA_LABELS=true
+DATABASE_SAVE_DATA_HISTORIC=true
+
+CACHE_REDIS_ENABLED=true
+CACHE_REDIS_URI=URL_INTERNA_DO_REDIS
+CACHE_REDIS_PREFIX_KEY=evolution
+CACHE_REDIS_SAVE_INSTANCES=true
+CACHE_LOCAL_ENABLED=false
+
+DEL_INSTANCE=false
+
+CONFIG_SESSION_PHONE_CLIENT=Evolution API
+CONFIG_SESSION_PHONE_NAME=Chrome
+
+LOG_LEVEL=INFO
+```
+
+Se o Render gerar outro endereço para o serviço, ajuste:
+
+```env
+SERVER_URL=https://URL-REAL-DA-EVOLUTION-API.onrender.com
+```
+
+### 4. Criar Webhook API
+
+No Render:
+
+```text
+New > Web Service
+```
+
+Conecte o repositório do GitHub e configure:
+
+- Nome: `api-whatsapp-webhook`
+- Runtime: Docker
+- Root Directory: `webhook-api`
+- Dockerfile Path: `Dockerfile`
+- Health Check Path: `/`
+
+Configure as variáveis:
+
+```env
+APP_NAME=Evolution Webhook API
+EVOLUTION_INSTANCE_NAME=NOME_DA_SUA_INSTANCIA
+WHATSAPP_GROUP_JID=
 ```
 
 O `webhook-api/Dockerfile` usa a variável `PORT` do Render e mantém `8000` como fallback local:
@@ -318,13 +305,32 @@ O `webhook-api/Dockerfile` usa a variável `PORT` do Render e mantém `8000` com
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 ```
 
+### 5. Configurar webhook na Evolution API
+
+Depois que os dois serviços estiverem online, configure o webhook da instância para:
+
+```text
+https://api-whatsapp-webhook.onrender.com/webhook/evolution
+```
+
+Se o Render criar outro endereço para o webhook, use o endereço real mantendo o caminho:
+
+```text
+https://URL-REAL-DO-WEBHOOK.onrender.com/webhook/evolution
+```
+
+### Observação importante
+
+Sem disco persistente pago na Evolution API, sessões/instâncias podem ser perdidas em restart ou redeploy. Para testar e validar o fluxo, tudo bem. Para produção estável, o ideal é usar disco persistente ou outro armazenamento suportado.
+
 ## Checklist antes do deploy
 
 - Subir o projeto no GitHub.
 - Conferir se `.env`, `webhook-api/.env` e `webhook-api/logs/` não foram enviados.
 - Conferir se o nome `api-whatsapp` está disponível no Render.
 - Conferir se o nome `api-whatsapp-webhook` está disponível no Render.
-- Conferir se os nomes `api-whatsapp-postgres` e `api-whatsapp-redis` estão disponíveis no Render.
-- Se trocar o nome da Evolution API, alterar `SERVER_URL` no `render.yaml`.
-- Criar o Blueprint no Render usando o `render.yaml`.
+- Criar Postgres e copiar a URL interna para `DATABASE_CONNECTION_URI`.
+- Criar Redis e copiar a URL interna para `CACHE_REDIS_URI`.
+- Criar a Evolution API usando a imagem Docker oficial.
+- Criar o webhook usando o Dockerfile em `webhook-api`.
 - Configurar na Evolution API o webhook apontando para `/webhook/evolution`.
